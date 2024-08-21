@@ -7,10 +7,46 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import streamlit as st
 import loguru as logger
+import os
 
 train_path = "data/train_v2.csv"
 test_path = "data/test_v2.csv"
 nrows = 200000
+
+st.set_page_config(layout="wide")
+
+feature_list = [
+    "fullVisitorId",
+    "date",
+    "visitNumber",  # exponential distribution
+    "VisitsStartTime",
+    "channelGrouping",
+    "socialEngagementType",
+    "device_browser",
+    "device_operatingSystem",
+    "device_isMobile",
+    "device_deviceCategory",
+    "geoNetwork_continent",
+    "geoNetwork_subcontinent",
+    "geoNetwork_country",
+    "geoNetwork_region",
+    "geoNetwork_city",
+    "geoNetwork_metro",
+    "geoNetwork_networkDomain",
+    "geoNetwork_sessionQualityDim",
+    "geoNetwork_timeOnSite",
+    "geoNetwork_transactions",
+    "trafficSource_campaign",
+    "trafficSource_soure",
+    "trafficSource_medium",
+    "trafficSource_keyword",
+    "trafficSource_referralPath",
+    "trafficSource_isTrueDirect",
+    "trafficSource_adwordsClickInfo.page",
+    "trafficSource_adwordsClickInfo.slot",
+    "trafficSource_adwordsClickInfo.adNetworkType",
+    "trafficSource_isVideoAd",
+]
 
 
 def load_df(csv_path, nrows=None):
@@ -64,7 +100,7 @@ def read_data(path, nrows):
     # defining the target variable using log1p transformation
     df["target"] = np.log1p(df["totals_transactionRevenue"].fillna(0).astype("float"))
 
-    logger.debug("Reading data from {path} completed, data shape = {df.shape}")
+    print(f"Reading data from {path} completed, data shape = {df.shape}")
     return df
 
 
@@ -73,3 +109,77 @@ def plotly_bargraphs(df, col_name, color):
         go.Bar(x=df[col_name], y=df.index, marker=dict(color=color), orientation="h")
     )
     return trace
+
+
+# upload_file = st.file_uploader("Upload a file containing Google Customer Revenue Data")
+data_file_path = os.path.join("/Users/divye/Desktop/gcrp_data/data", "train_v2.csv")
+
+
+@st.cache_data
+def read_df(path):
+    df = read_data(data_file_path, 200000)  # this takes time to load and read the data
+    return df
+
+
+def home():
+    st.header("Welcome to strealit web app Home Page")
+    st.write("Begin exploring the data using the menu on the left")
+
+
+@st.cache_data
+def data_scanner(df):
+    st.header("Header of Dataframe")
+    st.write(df.head())
+
+
+@st.cache_data
+def data_statistics(trigger, df, selected_options):
+    st.header("Statistics of Dataframe")
+    if trigger or st.session_state.disable_opt:
+        st.write(df[selected_options].describe())
+        st.session_state.disable_opt = True
+
+
+st.title("Google Customer Revenue Prediction Data")
+st.text(
+    "This is a streamlit web app to allow exploration of Google Customer Revenue Data sourced from Kaggle"
+)
+
+# Sidebar setup
+st.sidebar.title("Sidebar")
+# Sidebar navigation
+st.sidebar.title("Navigation")
+options = st.sidebar.radio(
+    "Select what you want to display:",
+    ["Home", "Data Scanner", "Data Statistics", "Data Exploration"],
+)
+# df = read_df(data_file_path)
+
+refresh = st.sidebar.button("Refresh", on_click=st.legacy_caching.caching.clear_cache())
+if refresh:
+    df = read_df(data_file_path)
+
+# Navigation options
+if options == "Home":
+    home()
+elif options == "Data Scanner":
+    data_scanner(df)
+elif options == "Data Statistics":
+    try:
+        _ = st.session_state.disable_opt
+    except AttributeError:
+        st.session_state.disable_opt = False
+
+    with st.form(key="describe_selctions"):
+        selected_options = st.multiselect(
+            "Select one or more options (maximum 6 selections are allowed):",
+            df.select_dtypes(include=["float64", "int64"]).columns.tolist(),
+            default=["target"],
+            max_selections=6,
+            # disabled=st.session_state.disable_opt,
+            key="describe_options",
+        )
+        apply = st.form_submit_button("Apply")
+    data_statistics(trigger=apply, df=df, selected_options=selected_options)
+elif options == "Data Exploration":
+    pass
